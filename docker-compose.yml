@@ -1,0 +1,61 @@
+version: "3.8"
+services:
+  # How to Tune Elastic Beats Performance: A Practical Example with Batch Size, Worker Count, and More
+  # https://www.elastic.co/blog/how-to-tune-elastic-beats-performance-a-practical-example-with-batch-size-worker-count-and-more?blade=tw&hulk=social
+  humio:
+    image: humio/humio:${HUMIO_VERSION:-1.18.2}
+    hostname: "{{.Node.Hostname}}-humio"
+    user: root
+    networks:
+      - humio
+    ports:
+    - 8080:8080
+    volumes:
+      - "./runtime/humio/mounts/data:/data"
+      - "./runtime/humio/mounts/kafka-data:/kafka-data"
+      - "./runtime/humio/mounts/runtime_files:/etc/humio:ro"
+    env_file:
+      - humio/humio.conf
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 8192
+    command: ""
+  humioctl:
+    build:
+      context:
+        ./humioctl
+    hostname: "{{.Node.Hostname}}-humioctl"
+    user: root
+    volumes:
+      - "./filebeat/filebeat-src.yml:/usr/share/filebeat/filebeat-src.yml"
+      - "./runtime/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml"
+    depends_on:
+      - humio
+    networks:
+      - humio
+    links:
+      - humio:humio
+  filebeat:
+    image: docker.elastic.co/beats/filebeat-oss:${ELASTIC_VERSION:-7.10.1}
+    # https://github.com/docker/swarmkit/issues/1951
+    hostname: "{{.Node.Hostname}}-filebeat"
+    user: root
+    networks:
+      - humio
+    volumes:
+      - "./filebeat/run.sh:/usr/share/filebeat/run.sh"
+      - "./runtime/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml"
+      - "./runtime/filebeat/mounts/data:/usr/share/filebeat/data"
+#      - "/var/run/docker.sock:/var/run/docker.sock"
+      # This is needed for filebeat to load demo log
+      - "./runtime/filebeat/mounts/src:/var/demo"
+    # disable strict permission checks
+    command: [ "--strict.perms=false" ]
+    entrypoint: [ "/usr/share/filebeat/run.sh" ]
+    deploy:
+      mode: global
+    depends_on:
+      - humioctl
+networks:
+  humio:

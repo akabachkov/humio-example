@@ -1,0 +1,22 @@
+filebeat.inputs:
+  - paths:
+      - /var/demo/*.log
+    encoding: utf-8
+    fields:
+      aField: value
+
+queue.mem:
+  events: 8000
+  flush.min_events: 1000
+  flush.timeout: 1s
+
+output:
+  elasticsearch:
+    setup.template.enabled: false
+    # Using the standard Humio API (preferred)
+    hosts: ["humio:8080/api/v1/ingest/elastic-bulk"]
+    username: anything
+    password: {TOKEN}
+    compression_level: 5
+    bulk_max_size: 200
+    worker: 5
